@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 2×2 迷你月历：第一行是翻月控件，下面是 7×6 的日期网格 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:orientation="vertical"
+    android:padding="6dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:baselineAligned="false"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/btn_prev"
+            android:layout_width="20dp"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text="‹"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/month_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:maxLines="1"
+            android:text="@string/app_name"
+            android:textColor="@color/text_primary"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btn_next"
+            android:layout_width="20dp"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:text="›"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
+    </LinearLayout>
+
+    <GridLayout
+        android:id="@+id/calendar_grid"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:alignmentMode="alignBounds"
+        android:columnCount="7"
+        android:rowCount="7"
+        android:useDefaultMargins="false">
+
+        <TextView android:id="@+id/wd0" style="@style/WeekdayCell" />
+        <TextView android:id="@+id/wd1" style="@style/WeekdayCell" />
+        <TextView android:id="@+id/wd2" style="@style/WeekdayCell" />
+        <TextView android:id="@+id/wd3" style="@style/WeekdayCell" />
+        <TextView android:id="@+id/wd4" style="@style/WeekdayCell" />
+        <TextView android:id="@+id/wd5" style="@style/WeekdayCell" />
+        <TextView android:id="@+id/wd6" style="@style/WeekdayCell" />
+
+        <TextView android:id="@+id/d0" style="@style/DayCell" />
+        <TextView android:id="@+id/d1" style="@style/DayCell" />
+        <TextView android:id="@+id/d2" style="@style/DayCell" />
+        <TextView android:id="@+id/d3" style="@style/DayCell" />
+        <TextView android:id="@+id/d4" style="@style/DayCell" />
+        <TextView android:id="@+id/d5" style="@style/DayCell" />
+        <TextView android:id="@+id/d6" style="@style/DayCell" />
+        <TextView android:id="@+id/d7" style="@style/DayCell" />
+        <TextView android:id="@+id/d8" style="@style/DayCell" />
+        <TextView android:id="@+id/d9" style="@style/DayCell" />
+        <TextView android:id="@+id/d10" style="@style/DayCell" />
+        <TextView android:id="@+id/d11" style="@style/DayCell" />
+        <TextView android:id="@+id/d12" style="@style/DayCell" />
+        <TextView android:id="@+id/d13" style="@style/DayCell" />
+        <TextView android:id="@+id/d14" style="@style/DayCell" />
+        <TextView android:id="@+id/d15" style="@style/DayCell" />
+        <TextView android:id="@+id/d16" style="@style/DayCell" />
+        <TextView android:id="@+id/d17" style="@style/DayCell" />
+        <TextView android:id="@+id/d18" style="@style/DayCell" />
+        <TextView android:id="@+id/d19" style="@style/DayCell" />
+        <TextView android:id="@+id/d20" style="@style/DayCell" />
+        <TextView android:id="@+id/d21" style="@style/DayCell" />
+        <TextView android:id="@+id/d22" style="@style/DayCell" />
+        <TextView android:id="@+id/d23" style="@style/DayCell" />
+        <TextView android:id="@+id/d24" style="@style/DayCell" />
+        <TextView android:id="@+id/d25" style="@style/DayCell" />
+        <TextView android:id="@+id/d26" style="@style/DayCell" />
+        <TextView android:id="@+id/d27" style="@style/DayCell" />
+        <TextView android:id="@+id/d28" style="@style/DayCell" />
+        <TextView android:id="@+id/d29" style="@style/DayCell" />
+        <TextView android:id="@+id/d30" style="@style/DayCell" />
+        <TextView android:id="@+id/d31" style="@style/DayCell" />
+        <TextView android:id="@+id/d32" style="@style/DayCell" />
+        <TextView android:id="@+id/d33" style="@style/DayCell" />
+        <TextView android:id="@+id/d34" style="@style/DayCell" />
+        <TextView android:id="@+id/d35" style="@style/DayCell" />
+        <TextView android:id="@+id/d36" style="@style/DayCell" />
+        <TextView android:id="@+id/d37" style="@style/DayCell" />
+        <TextView android:id="@+id/d38" style="@style/DayCell" />
+        <TextView android:id="@+id/d39" style="@style/DayCell" />
+        <TextView android:id="@+id/d40" style="@style/DayCell" />
+        <TextView android:id="@+id/d41" style="@style/DayCell" />
+    </GridLayout>
+</LinearLayout>

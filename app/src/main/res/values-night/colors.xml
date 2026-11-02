@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="screen_bg">#0E1013</color>
+    <color name="card_bg">#191C21</color>
+
+    <color name="widget_bg">#1A1E24</color>
+    <color name="widget_stroke">#2C323A</color>
+
+    <color name="text_primary">#E9EBEF</color>
+    <color name="text_secondary">#98A0AA</color>
+    <color name="text_weekend">#F08B80</color>
+
+    <color name="accent">#7FB0FF</color>
+    <color name="button_bg">#2E6BE0</color>
+    <color name="button_text">#FFFFFF</color>
+    <color name="ripple">#33FFFFFF</color>
+
+    <color name="today_bg">#3E7BF0</color>
+    <color name="today_text">#FFFFFF</color>
+
+    <color name="ic_launcher_background">#3478F6</color>
+</resources>

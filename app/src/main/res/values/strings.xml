@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">桌面日历</string>
+    <string name="app_subtitle">2×2 迷你月历小组件 · Kotlin</string>
+    <string name="widget_description">桌面上的迷你月历：显示当月日期并高亮今天，可以左右翻月。</string>
+
+    <string name="month_title">%1$d年%2$d月</string>
+    <string name="action_prev_month">查看上一个月</string>
+    <string name="action_next_month">查看下一个月</string>
+    <string name="action_today">回到本月</string>
+
+    <string name="add_to_home">添加到桌面</string>
+    <string name="open_calendar">打开系统日历</string>
+    <string name="monday_first">每周从周一开始</string>
+    <string name="monday_first_desc">关闭时周日在第一列</string>
+
+    <string name="hint_manual_add">如果一键添加没有反应，长按桌面空白处 → 小组件 → 找到「桌面日历」拖到桌面即可。</string>
+    <string name="hint_navigation">小组件标题两边的 ‹ › 用来翻月，点一下月份可以快速回到本月。</string>
+
+    <string name="pin_requested">已发送添加请求，请在桌面上确认</string>
+    <string name="pin_unsupported">当前桌面不支持一键添加，请长按桌面手动添加小组件</string>
+    <string name="no_calendar_app">没有找到可用的日历应用</string>
+
+    <string name="version_label">版本 %1$s</string>
+</resources>

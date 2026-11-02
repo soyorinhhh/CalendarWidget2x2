@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 夜晚模式下状态栏跟着变暗，图标要改成浅色 -->
+    <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:colorAccent">@color/accent</item>
+        <item name="android:navigationBarColor">@color/screen_bg</item>
+        <item name="android:statusBarColor">@color/screen_bg</item>
+        <item name="android:windowBackground">@color/screen_bg</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

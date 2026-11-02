@@ -1,31 +1,75 @@
-# CalendarWidget2x2 (Kotlin)
+# 桌面日历 · Mini Calendar Widget
 
-原生 Android 桌面日历小组件，使用 Kotlin 编写，默认浅色圆角背景，并高亮今天。
+用 Kotlin 写的原生 Android 桌面小组件：一块 2×2 的迷你月历，今天自动高亮，还能左右翻月。
+
+<p>
+  <img src="docs/widget-preview.png" width="280" alt="小组件预览">
+  <img src="docs/app-icon.png" width="88" alt="应用图标">
+</p>
 
 ## 功能
-- 当前年月与整月日期
-- 周日到周六排列
-- 蓝色圆形高亮今天
-- 原生 Android App Widget，可放在桌面并调整尺寸
-- GitHub Actions 自动构建 Debug APK 并上传 Artifact
 
-## 上传 GitHub 编译
-1. 解压本项目，将里面的所有文件上传到 GitHub 仓库根目录（不要只上传 ZIP）。
-2. 打开仓库的 **Actions** 页面。
-3. 选择 **Build Android APK**，点击 **Run workflow**；推送到 `main` 或 `master` 也会自动触发。
-4. 等待任务完成，在运行记录底部的 **Artifacts** 下载 `CalendarWidget2x2-debug`。
-5. 解压 Artifact，得到 `app-debug.apk`，安装到 Android 手机上。
+- **当月一屏**：7 列 × 6 行的日期网格，周日或周一开始可切换（周末用红色区分）
+- **今天高亮**：今天用蓝色圆角底 + 白字标出
+- **翻月**：标题两边的 `‹` `›` 翻到上/下个月，点标题一键回到本月；多个组件可以各自翻到不同月份
+- **深色模式**：跟随系统深浅色（`values-night`），桌面上不会刺眼
+- **自适应字号**：拖大组件时字号自动放大，2×2 到 4×4 都清楚
+- **自动刷新**：跨天、改时间、换时区、换语言都会立即重绘，另外每 30 分钟兜底刷新一次
+- **一键添加**：应用内点「添加到桌面」，Android 8+ 直接弹出确认框
+- **零依赖**：不使用任何第三方库，不申请任何权限，不联网
 
-项目内的 `gradlew` 会在首次运行时下载 Gradle 8.7，因此无需先手动生成标准 Gradle Wrapper 文件。GitHub Actions 运行环境需要能访问 Gradle 官方分发站点。
+## 下载安装
 
-## 安装桌面小组件
-安装 APK 后，长按手机桌面空白处，进入“小组件”，找到“桌面日历”，添加后调整到 2×2。
+1. 打开仓库的 **Actions** 页面，进入最新一次成功的 **Build Android APK**。
+2. 在页面底部 **Artifacts** 里下载 `calendar-widget-release`（或 `calendar-widget-debug`），解压得到 `.apk`。
+3. 传到手机上安装（需要允许「安装未知来源应用」）。
+4. 长按桌面空白处 → **小组件** → 找到「桌面日历」→ 拖到桌面；或者打开 App 点「添加到桌面」。
 
-## 说明
-- 当前生成的是 Debug APK，适合个人测试；正式发布需要配置签名的 Release 构建。
-- 不需要第三方 API 或网络权限。
-- 日期、时区或系统时间变化时会触发更新；不同桌面启动器对组件实际尺寸的呈现可能略有差异。
+> Release 包用的是 debug 签名，方便直接安装测试；真要上架应用商店请换成自己的 keystore。
 
-### 关于 Gradle 文件夹
+## 本地编译
 
-项目包含 `gradle/wrapper/gradle-wrapper.properties`，用于记录 Gradle 8.7 的发行版地址。当前根目录的 `gradlew` 是轻量引导脚本，会在 GitHub Actions 环境中下载并调用 Gradle 8.7，因此此版本不依赖标准 Wrapper 的 `gradle-wrapper.jar`。
+需要 JDK 17 和 Android SDK（`compileSdk 35`）。
+
+```bash
+# Debug
+./gradlew assembleDebug
+# Release（同样用 debug 签名，可直接安装）
+./gradlew assembleRelease
+```
+
+产物在 `app/build/outputs/apk/debug/` 和 `app/build/outputs/apk/release/`。
+
+Windows 下用 `gradlew.bat`。首次编译 Gradle 需要联网下载 AGP / Kotlin 插件依赖。
+
+## 项目结构
+
+```
+app/src/main/
+├── AndroidManifest.xml
+├── java/com/soyorinhhh/minicalendar/
+│   ├── CalendarWidgetProvider.kt   # 小组件本体：算日历、填 RemoteViews、处理翻月
+│   ├── MainActivity.kt             # 说明页 + 一键添加 + 星期起始设置
+│   └── WidgetPrefs.kt              # SharedPreferences 封装
+└── res/
+    ├── layout/calendar_widget.xml  # 小组件布局（42 个固定日期格子）
+    ├── layout/activity_main.xml    # 应用界面
+    ├── drawable*/                  # 圆角背景、今天高亮、图标
+    ├── values/ + values-night/     # 明暗两套配色
+    └── xml/calendar_widget_info.xml # 小组件元数据
+```
+
+## 实现说明
+
+**为什么日期格子是 42 个写死的 TextView？**
+桌面小组件跑在启动器进程里，只能通过 `RemoteViews` 更新（本质上是一串「对哪个 id 做什么操作」的指令），不能动态 addView，所以网格必须预先写好，再逐个 `setTextViewText`。
+
+**为什么 `updatePeriodMillis` 是 1800000？**
+系统对这个值有 30 分钟的下限。真正准时的跨天刷新靠 `ACTION_DATE_CHANGED` / `ACTION_TIME_CHANGED` / `ACTION_TIMEZONE_CHANGED` 广播，30 分钟只是兜底。
+
+**深色模式怎么生效？**
+小组件颜色全部走 `@color/...` 资源，`values-night` 里给了一套深色值。切系统主题后最多等一次 30 分钟兜底刷新就会跟上。
+
+## License
+
+[MIT](LICENSE)
