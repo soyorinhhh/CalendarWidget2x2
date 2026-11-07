@@ -70,6 +70,31 @@ app/src/main/
 **深色模式怎么生效？**
 小组件颜色全部走 `@color/...` 资源，`values-night` 里给了一套深色值。切系统主题后最多等一次 30 分钟兜底刷新就会跟上。
 
+## 发行签名
+
+**正式包必须本地构建，不要用 CI 产物当发行包。**
+
+```powershell
+gradle assembleRelease    # 产物：app/build/outputs/apk/release/app-release.apk
+```
+
+`app/build.gradle.kts` 里 release 用的是本机 debug keystore，密钥固定，所以
+**新版本可以直接覆盖安装旧版本，不需要卸载**（证书 SHA-256 `884224cc…`）。
+
+GitHub Actions 上每次构建都会新建一个 debug keystore，签名每次都不同。
+如果把 CI 产出的 `app-release.apk` 当正式包发出去，用户升级时必然报：
+
+```
+INSTALL_FAILED_UPDATE_INCOMPATIBLE: ... signatures do not match newer version
+```
+
+所以约定的流程是：
+
+- push 到 `main` → CI 只做编译验证（`assembleDebug assembleRelease`）
+- **不要给发行版本打 tag**：`*.github/workflows/build.yml` 的 release job 会在 tag 上
+  自动把 CI 签名的 APK 挂到 Release，覆盖掉本地签名包
+- 本地构建 → 手动上传到 Release（命名 `minicalendar-vX.Y.apk`）
+
 ## License
 
 [MIT](LICENSE)
