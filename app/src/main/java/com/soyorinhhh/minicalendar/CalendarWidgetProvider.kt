@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.util.TypedValue
 import android.widget.RemoteViews
@@ -78,6 +79,22 @@ class CalendarWidgetProvider : AppWidgetProvider() {
 
         private const val MAX_MONTH_OFFSET = 120
 
+        /** 拿不到组件尺寸时的兜底（2×2 的最小尺寸）。 */
+        private const val DEFAULT_SIZE_DP = 110
+
+        /** 启动器不报尺寸时沿用的固定行高（与 styles.xml 的 DayCell 一致）。 */
+        private const val LEGACY_ROW_HEIGHT_DP = 18f
+
+        /** 根布局 padding（与 calendar_widget.xml 保持一致）。 */
+        private const val PADDING_DP = 6f
+
+        /** 顶部「‹ 2026年11月 ›」那一行的高度。 */
+        private const val TITLE_HEIGHT_DP = 22f
+
+        /** 行高上下限：再小字就糊了，再大就不是「迷你」月历了。 */
+        private const val MIN_ROW_HEIGHT_DP = 12f
+        private const val MAX_ROW_HEIGHT_DP = 26f
+
         private val WEEKDAY_IDS = intArrayOf(
             R.id.wd0, R.id.wd1, R.id.wd2, R.id.wd3, R.id.wd4, R.id.wd5, R.id.wd6
         )
@@ -140,7 +157,13 @@ class CalendarWidgetProvider : AppWidgetProvider() {
                 )
             )
 
-            val sizes = fontSizes(availableHeightDp(manager, widgetId))
+            // 先按组件真实尺寸把 7 行的高度定下来，字号再跟着行高走。
+            val size = availableSizeDp(manager, widgetId)
+            val rowHeight = if (size != null) rowHeightDp(size.height) else LEGACY_ROW_HEIGHT_DP
+            val columnWidth = ((size?.width ?: DEFAULT_SIZE_DP) - PADDING_DP * 2) / 7f
+            if (size != null) applyRowHeight(context, views, rowHeight)
+
+            val sizes = fontSizes(rowHeight, columnWidth)
             views.setTextViewTextSize(
                 R.id.month_title, TypedValue.COMPLEX_UNIT_SP, sizes.titleSp
             )
@@ -228,26 +251,73 @@ class CalendarWidgetProvider : AppWidgetProvider() {
             manager.updateAppWidget(widgetId, views)
         }
 
-        /** 组件当前高度（dp）。尺寸信息拿不到时退回 2×2 的默认高度。 */
-        private fun availableHeightDp(manager: AppWidgetManager, widgetId: Int): Int {
+        /**
+         * 组件当前尺寸（dp）；启动器没上报尺寸时返回 null。
+         *
+         * 可缩放组件的 MIN/MAX 是按横竖屏分别上报的，取两者的较大值能覆盖常规竖屏摆放。
+         * 两者都是 0 说明这个启动器根本不报尺寸 —— 这时宁可退回 styles.xml 里写死的 18dp，
+         * 也不要用一个编出来的数值去缩字号。
+         */
+        private fun availableSizeDp(manager: AppWidgetManager, widgetId: Int): WidgetSize? {
             val options = manager.getAppWidgetOptions(widgetId)
-            val height = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT)
-            return if (height > 0) height else 110
+            val w = maxOf(
+                options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH),
+                options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH)
+            )
+            val h = maxOf(
+                options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT),
+                options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT)
+            )
+            if (w <= 0 || h <= 0) return null
+            return WidgetSize(w, h)
         }
 
         /**
-         * 按组件高度推算字号：2×2 大约 8sp，拉到 4×4 时能长到 14sp。
-         * 网格固定 7 行（1 行表头 + 6 行日期），所以每行高度约等于 (高度 - 标题区) / 7。
+         * 由可用高度反推每一行的高度。
+         *
+         * 网格固定 7 行（1 行星期表头 + 6 行日期）。宿主给的区域经常不是正方形，
+         * 实测有 150×200dp 这种 3:4 的竖长格子 —— 行高写死 18dp 会在竖直方向空出一大块，
+         * 看起来像「日历缩在中间」。这里直接把剩余高度均分给 7 行：
+         * 行高是从高度反推出来的，所以永远不会溢出。
          */
-        private fun fontSizes(heightDp: Int): FontSizes {
-            val rowHeight = ((heightDp - 28f) / 7f).coerceIn(9f, 40f)
-            // 行高在 styles.xml 里是固定的 18dp，字号必须能塞进 18dp，
-            // 否则会被裁掉上半截（大写字母贴边）。上限按 18dp 行高反推。
+        private fun rowHeightDp(heightDp: Int): Float {
+            val contentHeight = heightDp - PADDING_DP * 2 - TITLE_HEIGHT_DP
+            return (contentHeight / 7f).coerceIn(MIN_ROW_HEIGHT_DP, MAX_ROW_HEIGHT_DP)
+        }
+
+        /**
+         * 把行高写进 RemoteViews。
+         *
+         * setViewLayoutHeightDimen 是 API 31 才有的公开接口；低版本没有它，
+         * 这时保留 styles.xml 里的固定行高（18dp），行为和 v1.2 完全一致。
+         * 包一层 runCatching：个别启动器/ROM 上调用可能抛异常，
+         * 不能因为一个装饰性优化把整个组件刷成「加载失败」。
+         */
+        private fun applyRowHeight(context: Context, views: RemoteViews, rowHeightDp: Float) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+            val px = (rowHeightDp * context.resources.displayMetrics.density).toInt()
+                .coerceAtLeast(1)
+            runCatching {
+                WEEKDAY_IDS.forEach { views.setViewLayoutHeightDimen(it, px) }
+                DAY_IDS.forEach { views.setViewLayoutHeightDimen(it, px) }
+            }
+        }
+
+        /**
+         * 按行高 + 列宽推算字号。
+         *
+         * 行高决定「竖直方向能塞多高」，列宽决定「两位数字能不能挤进一格」。
+         * 竖长组件（150×200dp）的行高会到 20dp 以上，但列宽只有 ~20dp，
+         * 只按行高放字号会把「30」撑出格子，所以两个方向都要取小。
+         */
+        private fun fontSizes(rowHeightDp: Float, columnWidthDp: Float): FontSizes {
+            val byHeight = rowHeightDp * 0.52f
+            val byWidth = columnWidthDp * 0.68f
             return FontSizes(
-                daySp = (rowHeight * 0.62f).coerceIn(8f, 11.5f),
-                weekdaySp = (rowHeight * 0.50f).coerceIn(7f, 9f),
-                titleSp = (rowHeight * 0.72f).coerceIn(10f, 15f),
-                arrowSp = (rowHeight * 0.80f).coerceIn(11f, 16f)
+                daySp = minOf(byHeight, byWidth).coerceIn(8f, 12f),
+                weekdaySp = (rowHeightDp * 0.42f).coerceIn(7f, 10f),
+                titleSp = (rowHeightDp * 0.60f).coerceIn(10f, 15f),
+                arrowSp = (rowHeightDp * 0.66f).coerceIn(11f, 16f)
             )
         }
 
@@ -298,5 +368,7 @@ class CalendarWidgetProvider : AppWidgetProvider() {
             val titleSp: Float,
             val arrowSp: Float
         )
+
+        private data class WidgetSize(val width: Int, val height: Int)
     }
 }
