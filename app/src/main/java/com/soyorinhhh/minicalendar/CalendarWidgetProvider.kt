@@ -9,6 +9,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.util.TypedValue
+import android.view.View
 import android.widget.RemoteViews
 import java.util.Calendar
 
@@ -92,8 +93,11 @@ class CalendarWidgetProvider : AppWidgetProvider() {
         private const val TITLE_HEIGHT_DP = 22f
 
         /** 行高上下限：再小字就糊了，再大就不是「迷你」月历了。 */
-        private const val MIN_ROW_HEIGHT_DP = 12f
+        private const val MIN_ROW_HEIGHT_DP = 10f
         private const val MAX_ROW_HEIGHT_DP = 26f
+
+        /** 一个月的日期最多占 6 行（7 列 × 6 行 = 42 格）。 */
+        private const val MAX_DATE_ROWS = 6
 
         private val WEEKDAY_IDS = intArrayOf(
             R.id.wd0, R.id.wd1, R.id.wd2, R.id.wd3, R.id.wd4, R.id.wd5, R.id.wd6
@@ -157,9 +161,24 @@ class CalendarWidgetProvider : AppWidgetProvider() {
                 )
             )
 
-            // 先按组件真实尺寸把 7 行的高度定下来，字号再跟着行高走。
+            // ---------- 本月占几周 ----------
+            // 必须先算这个，再算行高：第 6 行在很多月份是完全空的，
+            // 留着它只会把每格压扁（20xx 年有几个月的 29/30/31 号就是这么被挤出去的）。
+            val daysInMonth = shown.getActualMaximum(Calendar.DAY_OF_MONTH)
+            val leadingBlanks = if (mondayFirst) {
+                (shown.get(Calendar.DAY_OF_WEEK) + 5) % 7
+            } else {
+                shown.get(Calendar.DAY_OF_WEEK) - Calendar.SUNDAY
+            }
+            val weeks = ((leadingBlanks + daysInMonth + 6) / 7).coerceIn(1, MAX_DATE_ROWS)
+
+            // ---------- 行高 & 字号 ----------
             val size = availableSizeDp(manager, widgetId)
-            val rowHeight = if (size != null) rowHeightDp(size.height) else LEGACY_ROW_HEIGHT_DP
+            val rowHeight = if (size != null) {
+                rowHeightDp(size.height, weeks)
+            } else {
+                LEGACY_ROW_HEIGHT_DP
+            }
             val columnWidth = ((size?.width ?: DEFAULT_SIZE_DP) - PADDING_DP * 2) / 7f
             if (size != null) applyRowHeight(views, rowHeight)
 
@@ -192,16 +211,19 @@ class CalendarWidgetProvider : AppWidgetProvider() {
             }
 
             // ---------- 日期网格 ----------
-            val daysInMonth = shown.getActualMaximum(Calendar.DAY_OF_MONTH)
-            val leadingBlanks = if (mondayFirst) {
-                (shown.get(Calendar.DAY_OF_WEEK) + 5) % 7
-            } else {
-                shown.get(Calendar.DAY_OF_WEEK) - Calendar.SUNDAY
-            }
             val todayDay = today.get(Calendar.DAY_OF_MONTH)
             val todayTextColor = context.getColor(R.color.today_text)
+            val visibleCells = weeks * 7
 
             DAY_IDS.forEachIndexed { index, id ->
+                // 本月用不到的格子直接隐藏：GridLayout 会跳过 GONE 的子 View，
+                // 空出来的高度就还给剩下的行，而不是撑出一个空行。
+                if (index >= visibleCells) {
+                    views.setViewVisibility(id, View.GONE)
+                    return@forEachIndexed
+                }
+                views.setViewVisibility(id, View.VISIBLE)
+
                 val day = index - leadingBlanks + 1
                 if (day in 1..daysInMonth) {
                     views.setTextViewText(id, day.toString())
@@ -273,16 +295,19 @@ class CalendarWidgetProvider : AppWidgetProvider() {
         }
 
         /**
-         * 由可用高度反推每一行的高度。
+         * 由可用高度和当月周数反推每一行的高度。
          *
-         * 网格固定 7 行（1 行星期表头 + 6 行日期）。宿主给的区域经常不是正方形，
-         * 实测有 150×200dp 这种 3:4 的竖长格子 —— 行高写死 18dp 会在竖直方向空出一大块，
-         * 看起来像「日历缩在中间」。这里直接把剩余高度均分给 7 行：
-         * 行高是从高度反推出来的，所以永远不会溢出。
+         * 总行数 = 1 行星期表头 + 当月实际周数（4~6）。宿主给的区域经常不是正方形，
+         * 实测有 150×200dp 这种 3:4 的竖长格子，也有 166×109dp 这种横扁格子 ——
+         * 行高写死会把内容顶出边界，所以直接从剩余高度均分。
+         *
+         * 注意下限不能钳太高：2×2 在横屏启动器上只有 ~109dp 高，
+         * 7 行按 12dp 算就会超出 9dp，表现是最后一行被切掉（实测踩过）。
          */
-        private fun rowHeightDp(heightDp: Int): Float {
+        private fun rowHeightDp(heightDp: Int, weeks: Int): Float {
             val contentHeight = heightDp - PADDING_DP * 2 - TITLE_HEIGHT_DP
-            return (contentHeight / 7f).coerceIn(MIN_ROW_HEIGHT_DP, MAX_ROW_HEIGHT_DP)
+            val rows = 1 + weeks.coerceIn(1, MAX_DATE_ROWS)
+            return (contentHeight / rows).coerceIn(MIN_ROW_HEIGHT_DP, MAX_ROW_HEIGHT_DP)
         }
 
         /**
