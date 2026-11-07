@@ -161,7 +161,7 @@ class CalendarWidgetProvider : AppWidgetProvider() {
             val size = availableSizeDp(manager, widgetId)
             val rowHeight = if (size != null) rowHeightDp(size.height) else LEGACY_ROW_HEIGHT_DP
             val columnWidth = ((size?.width ?: DEFAULT_SIZE_DP) - PADDING_DP * 2) / 7f
-            if (size != null) applyRowHeight(context, views, rowHeight)
+            if (size != null) applyRowHeight(views, rowHeight)
 
             val sizes = fontSizes(rowHeight, columnWidth)
             views.setTextViewTextSize(
@@ -288,18 +288,23 @@ class CalendarWidgetProvider : AppWidgetProvider() {
         /**
          * 把行高写进 RemoteViews。
          *
-         * setViewLayoutHeightDimen 是 API 31 才有的公开接口；低版本没有它，
-         * 这时保留 styles.xml 里的固定行高（18dp），行为和 v1.2 完全一致。
-         * 包一层 runCatching：个别启动器/ROM 上调用可能抛异常，
-         * 不能因为一个装饰性优化把整个组件刷成「加载失败」。
+         * 注意用的是 setViewLayoutHeight(id, 数值, 单位) 而不是 setViewLayoutHeightDimen：
+         * 后者第二个参数要的是 **dimen 资源 ID**，传像素值会被当成资源去查表，
+         * 启动器直接抛 Resources$NotFoundException，微件显示「无法加载微件」（实测踩过）。
+         *
+         * 这两个接口都是 API 31 才有的公开 API；低版本保留 styles.xml 里写死的 18dp，
+         * 行为和 v1.2 一致。外面包一层 runCatching：个别启动器实现异常时，
+         * 宁可退回默认行高，也不能把整个微件刷成「加载失败」。
          */
-        private fun applyRowHeight(context: Context, views: RemoteViews, rowHeightDp: Float) {
+        private fun applyRowHeight(views: RemoteViews, rowHeightDp: Float) {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
-            val px = (rowHeightDp * context.resources.displayMetrics.density).toInt()
-                .coerceAtLeast(1)
             runCatching {
-                WEEKDAY_IDS.forEach { views.setViewLayoutHeightDimen(it, px) }
-                DAY_IDS.forEach { views.setViewLayoutHeightDimen(it, px) }
+                WEEKDAY_IDS.forEach {
+                    views.setViewLayoutHeight(it, rowHeightDp, TypedValue.COMPLEX_UNIT_DIP)
+                }
+                DAY_IDS.forEach {
+                    views.setViewLayoutHeight(it, rowHeightDp, TypedValue.COMPLEX_UNIT_DIP)
+                }
             }
         }
 
