@@ -46,15 +46,20 @@
             android:textSize="14sp" />
     </LinearLayout>
 
-    <GridLayout
-        android:id="@+id/calendar_grid"
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:alignmentMode="alignBounds"
-        android:columnCount="7"
-        android:rowCount="7"
-        android:useDefaultMargins="false">
+        android:layout_weight="1">
+
+        <GridLayout
+            android:id="@+id/calendar_grid"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical"
+            android:alignmentMode="alignBounds"
+            android:columnCount="7"
+            android:rowCount="7"
+            android:useDefaultMargins="false">
 
         <TextView android:id="@+id/wd0" style="@style/WeekdayCell" />
         <TextView android:id="@+id/wd1" style="@style/WeekdayCell" />
@@ -106,5 +111,6 @@
         <TextView android:id="@+id/d39" style="@style/DayCell" />
         <TextView android:id="@+id/d40" style="@style/DayCell" />
         <TextView android:id="@+id/d41" style="@style/DayCell" />
-    </GridLayout>
+        </GridLayout>
+    </FrameLayout>
 </LinearLayout>

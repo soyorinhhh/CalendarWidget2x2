@@ -1,24 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <!-- 星期表头 -->
+    <!-- 星期表头：行高固定，不参与纵向拉伸 -->
     <style name="WeekdayCell">
         <item name="android:layout_width">0dp</item>
-        <item name="android:layout_height">0dp</item>
+        <item name="android:layout_height">14dp</item>
         <item name="android:layout_columnWeight">1</item>
-        <item name="android:layout_rowWeight">1</item>
         <item name="android:gravity">center</item>
         <item name="android:includeFontPadding">false</item>
         <item name="android:textColor">@color/text_secondary</item>
         <item name="android:textSize">9sp</item>
     </style>
 
-    <!-- 日期格子 -->
+    <!--
+        日期格子：行高固定 18dp，不能用 0dp + rowWeight。
+        宿主给的区域往往比正方形高（ColorOS 格子偏长），一旦按剩余高度均分，
+        整个日历就会被纵向拉成 2×3 的样子，行距变得很大 —— 这是实测确认的。
+    -->
     <style name="DayCell">
         <item name="android:layout_width">0dp</item>
-        <item name="android:layout_height">0dp</item>
+        <item name="android:layout_height">18dp</item>
         <item name="android:layout_columnWeight">1</item>
-        <item name="android:layout_rowWeight">1</item>
         <item name="android:background">@android:color/transparent</item>
         <item name="android:gravity">center</item>
         <item name="android:includeFontPadding">false</item>

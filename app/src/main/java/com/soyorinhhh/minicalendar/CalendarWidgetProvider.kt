@@ -241,11 +241,13 @@ class CalendarWidgetProvider : AppWidgetProvider() {
          */
         private fun fontSizes(heightDp: Int): FontSizes {
             val rowHeight = ((heightDp - 28f) / 7f).coerceIn(9f, 40f)
+            // 行高在 styles.xml 里是固定的 18dp，字号必须能塞进 18dp，
+            // 否则会被裁掉上半截（大写字母贴边）。上限按 18dp 行高反推。
             return FontSizes(
-                daySp = (rowHeight * 0.62f).coerceIn(8f, 14f),
-                weekdaySp = (rowHeight * 0.50f).coerceIn(7f, 11f),
-                titleSp = (rowHeight * 0.72f).coerceIn(10f, 17f),
-                arrowSp = (rowHeight * 0.80f).coerceIn(11f, 20f)
+                daySp = (rowHeight * 0.62f).coerceIn(8f, 11.5f),
+                weekdaySp = (rowHeight * 0.50f).coerceIn(7f, 9f),
+                titleSp = (rowHeight * 0.72f).coerceIn(10f, 15f),
+                arrowSp = (rowHeight * 0.80f).coerceIn(11f, 16f)
             )
         }
 
