@@ -6,11 +6,8 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.res.Configuration
-import android.os.Build
 import android.os.Bundle
 import android.util.Log
-import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import java.util.Calendar
@@ -21,6 +18,16 @@ import java.util.Calendar
  * 布局说明：第一行是「‹ 2026年10月 ›」，下方是 7 列 × 6 行的日期网格（固定 42 个格子）。
  * 所有格子都用固定的 View id（d0..d41 / wd0..wd6），因此可以在 RemoteViews 里逐个填充文字，
  * 不需要动态创建 View —— 桌面启动器只接受这种静态布局。
+ *
+ * 为什么行高写死、不按组件尺寸自适应（v1.3 走过的弯路，记在这里免得再踩）：
+ * 1. 各启动器上报的 OPTION_APPWIDGET_MIN/MAX 宽高不可信。实测 MuMu 的 Lawnchair
+ *    把像素当 dp 报（真实 230×150px 的组件上报成 250×167dp），按它反推行高必然算大，
+ *    最后一行被切掉；
+ * 2. RemoteViews 改行高只能走 API 31 的 setViewLayoutHeight，而那套 API 一旦参数用错
+ *    （比如把 px 传给 setViewLayoutHeightDimen，它要的是 dimen 资源 ID），
+ *    启动器会直接判定「无法加载微件」；
+ * 3. 结果：自适应在 2×2 这种小尺寸上收益很小，风险却很高。
+ * 用固定行高 + 居中，任何尺寸下行为都一致，只是大尺寸会多留白 —— 这是可接受的。
  */
 class CalendarWidgetProvider : AppWidgetProvider() {
 
@@ -38,7 +45,7 @@ class CalendarWidgetProvider : AppWidgetProvider() {
         appWidgetId: Int,
         newOptions: Bundle?
     ) {
-        // 用户拖动改变组件尺寸后，按新的高度重新计算字号。
+        // 用户拖动改变组件尺寸后重新绘制（翻月状态、今天高亮都要重新算）。
         render(context, appWidgetManager, appWidgetId)
     }
 
@@ -83,22 +90,6 @@ class CalendarWidgetProvider : AppWidgetProvider() {
         private const val SLOT_OPEN = 4
 
         private const val MAX_MONTH_OFFSET = 120
-
-        /** 拿不到组件尺寸时的兜底（2×2 的最小尺寸）。 */
-        private const val DEFAULT_SIZE_DP = 110
-
-        /** 启动器不报尺寸时沿用的固定行高（与 styles.xml 的 DayCell 一致）。 */
-        private const val LEGACY_ROW_HEIGHT_DP = 18f
-
-        /** 根布局 padding（与 calendar_widget.xml 保持一致）。 */
-        private const val PADDING_DP = 6f
-
-        /** 顶部「‹ 2026年11月 ›」那一行的高度。 */
-        private const val TITLE_HEIGHT_DP = 22f
-
-        /** 行高上下限：再小字就糊了，再大就不是「迷你」月历了。 */
-        private const val MIN_ROW_HEIGHT_DP = 10f
-        private const val MAX_ROW_HEIGHT_DP = 26f
 
         /** 一个月的日期最多占 6 行（7 列 × 6 行 = 42 格）。 */
         private const val MAX_DATE_ROWS = 6
@@ -155,7 +146,7 @@ class CalendarWidgetProvider : AppWidgetProvider() {
                 add(Calendar.MONTH, offset)
             }
 
-            // ---------- 标题 & 字号 ----------
+            // ---------- 标题 ----------
             views.setTextViewText(
                 R.id.month_title,
                 context.getString(
@@ -165,9 +156,15 @@ class CalendarWidgetProvider : AppWidgetProvider() {
                 )
             )
 
+            // 正在浏览其它月份时，标题改成强调色，提示「这不是本月」。
+            views.setTextColor(
+                R.id.month_title,
+                context.getColor(if (offset == 0) R.color.text_primary else R.color.accent)
+            )
+
             // ---------- 本月占几周 ----------
-            // 必须先算这个，再算行高：第 6 行在很多月份是完全空的，
-            // 留着它只会把每格压扁（20xx 年有几个月的 29/30/31 号就是这么被挤出去的）。
+            // 第 6 行在很多月份是完全空的，留着它只会把每格压扁、
+            // 或者在最底部留一条空带，所以按真实周数决定显示几行。
             val daysInMonth = shown.getActualMaximum(Calendar.DAY_OF_MONTH)
             val leadingBlanks = if (mondayFirst) {
                 (shown.get(Calendar.DAY_OF_WEEK) + 5) % 7
@@ -176,35 +173,7 @@ class CalendarWidgetProvider : AppWidgetProvider() {
             }
             val weeks = ((leadingBlanks + daysInMonth + 6) / 7).coerceIn(1, MAX_DATE_ROWS)
 
-            // ---------- 行高 & 字号 ----------
-            val size = availableSizeDp(context, manager, widgetId)
-            val rowHeight = if (size != null) {
-                rowHeightDp(size.height, weeks)
-            } else {
-                LEGACY_ROW_HEIGHT_DP
-            }
-            val columnWidth = ((size?.width ?: DEFAULT_SIZE_DP) - PADDING_DP * 2) / 7f
-            if (size != null) applyRowHeight(views, rowHeight)
-
-            // 排版完全依赖启动器上报的尺寸，出问题时没有这行日志只能靠猜（实测吃过亏）。
-            Log.d(
-                TAG,
-                "render id=$widgetId size=${size?.width}x${size?.height}dp " +
-                    "weeks=$weeks row=${"%.1f".format(rowHeight)}dp col=${"%.1f".format(columnWidth)}dp"
-            )
-
-            val sizes = fontSizes(rowHeight, columnWidth)
-            views.setTextViewTextSize(
-                R.id.month_title, TypedValue.COMPLEX_UNIT_SP, sizes.titleSp
-            )
-            views.setTextViewTextSize(R.id.btn_prev, TypedValue.COMPLEX_UNIT_SP, sizes.arrowSp)
-            views.setTextViewTextSize(R.id.btn_next, TypedValue.COMPLEX_UNIT_SP, sizes.arrowSp)
-
-            // 正在浏览其它月份时，标题改成强调色，提示「这不是本月」。
-            views.setTextColor(
-                R.id.month_title,
-                context.getColor(if (offset == 0) R.color.text_primary else R.color.accent)
-            )
+            Log.d(TAG, "render id=$widgetId weeks=$weeks days=$daysInMonth lead=$leadingBlanks")
 
             // ---------- 星期表头 ----------
             val labels = if (mondayFirst) WEEKDAY_MONDAY_FIRST else WEEKDAY_SUNDAY_FIRST
@@ -214,7 +183,6 @@ class CalendarWidgetProvider : AppWidgetProvider() {
 
             WEEKDAY_IDS.forEachIndexed { column, id ->
                 views.setTextViewText(id, labels[column])
-                views.setTextViewTextSize(id, TypedValue.COMPLEX_UNIT_SP, sizes.weekdaySp)
                 views.setTextColor(
                     id,
                     if (isWeekendColumn(column, mondayFirst)) weekendColor else secondaryColor
@@ -227,8 +195,8 @@ class CalendarWidgetProvider : AppWidgetProvider() {
             val visibleCells = weeks * 7
 
             DAY_IDS.forEachIndexed { index, id ->
-                // 本月用不到的格子直接隐藏：GridLayout 会跳过 GONE 的子 View，
-                // 空出来的高度就还给剩下的行，而不是撑出一个空行。
+                // 本月用不到的格子直接隐藏：GridLayout 布局时会跳过 GONE 的子 View，
+                // 空出来的高度就还给剩下的行，而不是撑出一条空带。
                 if (index >= visibleCells) {
                     views.setViewVisibility(id, View.GONE)
                     return@forEachIndexed
@@ -238,7 +206,6 @@ class CalendarWidgetProvider : AppWidgetProvider() {
                 val day = index - leadingBlanks + 1
                 if (day in 1..daysInMonth) {
                     views.setTextViewText(id, day.toString())
-                    views.setTextViewTextSize(id, TypedValue.COMPLEX_UNIT_SP, sizes.daySp)
                     if (offset == 0 && day == todayDay) {
                         views.setTextColor(id, todayTextColor)
                         views.setInt(id, "setBackgroundResource", R.drawable.day_today_bg)
@@ -284,93 +251,6 @@ class CalendarWidgetProvider : AppWidgetProvider() {
             manager.updateAppWidget(widgetId, views)
         }
 
-        /**
-         * 组件当前尺寸（dp）；启动器没上报尺寸时返回 null。
-         *
-         * MIN/MAX 是按**横竖屏分别**上报的，必须按当前方向取：
-         * 横屏时组件「宽而矮」→ 宽度取 MAX、高度取 MIN；竖屏反过来。
-         * 两个方向都取 MAX 会拿到另一方向的估计值，行高算大，最后一行就被切掉（实测踩过）。
-         */
-        private fun availableSizeDp(
-            context: Context,
-            manager: AppWidgetManager,
-            widgetId: Int
-        ): WidgetSize? {
-            val options = manager.getAppWidgetOptions(widgetId)
-            val minW = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)
-            val maxW = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH)
-            val minH = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT)
-            val maxH = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT)
-
-            val landscape = context.resources.configuration.orientation ==
-                Configuration.ORIENTATION_LANDSCAPE
-            // 首选方向对应的那一项；它缺失（有的启动器只报一组）时回退到较大值。
-            val w = pick(if (landscape) maxW else minW, minW, maxW)
-            val h = pick(if (landscape) minH else maxH, minH, maxH)
-            if (w <= 0 || h <= 0) return null
-            return WidgetSize(w, h)
-        }
-
-        private fun pick(preferred: Int, vararg fallbacks: Int): Int =
-            if (preferred > 0) preferred else fallbacks.maxOrNull() ?: 0
-
-        /**
-         * 由可用高度和当月周数反推每一行的高度。
-         *
-         * 总行数 = 1 行星期表头 + 当月实际周数（4~6）。宿主给的区域经常不是正方形，
-         * 实测有 150×200dp 这种 3:4 的竖长格子，也有 166×109dp 这种横扁格子 ——
-         * 行高写死会把内容顶出边界，所以直接从剩余高度均分。
-         *
-         * 注意下限不能钳太高：2×2 在横屏启动器上只有 ~109dp 高，
-         * 7 行按 12dp 算就会超出 9dp，表现是最后一行被切掉（实测踩过）。
-         */
-        private fun rowHeightDp(heightDp: Int, weeks: Int): Float {
-            val contentHeight = heightDp - PADDING_DP * 2 - TITLE_HEIGHT_DP
-            val rows = 1 + weeks.coerceIn(1, MAX_DATE_ROWS)
-            return (contentHeight / rows).coerceIn(MIN_ROW_HEIGHT_DP, MAX_ROW_HEIGHT_DP)
-        }
-
-        /**
-         * 把行高写进 RemoteViews。
-         *
-         * 注意用的是 setViewLayoutHeight(id, 数值, 单位) 而不是 setViewLayoutHeightDimen：
-         * 后者第二个参数要的是 **dimen 资源 ID**，传像素值会被当成资源去查表，
-         * 启动器直接抛 Resources$NotFoundException，微件显示「无法加载微件」（实测踩过）。
-         *
-         * 这两个接口都是 API 31 才有的公开 API；低版本保留 styles.xml 里写死的 18dp，
-         * 行为和 v1.2 一致。外面包一层 runCatching：个别启动器实现异常时，
-         * 宁可退回默认行高，也不能把整个微件刷成「加载失败」。
-         */
-        private fun applyRowHeight(views: RemoteViews, rowHeightDp: Float) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
-            runCatching {
-                WEEKDAY_IDS.forEach {
-                    views.setViewLayoutHeight(it, rowHeightDp, TypedValue.COMPLEX_UNIT_DIP)
-                }
-                DAY_IDS.forEach {
-                    views.setViewLayoutHeight(it, rowHeightDp, TypedValue.COMPLEX_UNIT_DIP)
-                }
-            }
-        }
-
-        /**
-         * 按行高 + 列宽推算字号。
-         *
-         * 行高决定「竖直方向能塞多高」，列宽决定「两位数字能不能挤进一格」。
-         * 竖长组件（150×200dp）的行高会到 20dp 以上，但列宽只有 ~20dp，
-         * 只按行高放字号会把「30」撑出格子，所以两个方向都要取小。
-         */
-        private fun fontSizes(rowHeightDp: Float, columnWidthDp: Float): FontSizes {
-            val byHeight = rowHeightDp * 0.52f
-            val byWidth = columnWidthDp * 0.68f
-            return FontSizes(
-                daySp = minOf(byHeight, byWidth).coerceIn(8f, 12f),
-                weekdaySp = (rowHeightDp * 0.42f).coerceIn(7f, 10f),
-                titleSp = (rowHeightDp * 0.60f).coerceIn(10f, 15f),
-                arrowSp = (rowHeightDp * 0.66f).coerceIn(11f, 16f)
-            )
-        }
-
         private fun isWeekendColumn(column: Int, mondayFirst: Boolean): Boolean =
             if (mondayFirst) column >= 5 else column == 0 || column == 6
 
@@ -411,14 +291,5 @@ class CalendarWidgetProvider : AppWidgetProvider() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
         }
-
-        private data class FontSizes(
-            val daySp: Float,
-            val weekdaySp: Float,
-            val titleSp: Float,
-            val arrowSp: Float
-        )
-
-        private data class WidgetSize(val width: Int, val height: Int)
     }
 }

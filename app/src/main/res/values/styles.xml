@@ -4,7 +4,7 @@
     <!-- 星期表头：行高固定，不参与纵向拉伸 -->
     <style name="WeekdayCell">
         <item name="android:layout_width">0dp</item>
-        <item name="android:layout_height">14dp</item>
+        <item name="android:layout_height">13dp</item>
         <item name="android:layout_columnWeight">1</item>
         <item name="android:gravity">center</item>
         <item name="android:includeFontPadding">false</item>
@@ -13,13 +13,15 @@
     </style>
 
     <!--
-        日期格子：行高固定 18dp，不能用 0dp + rowWeight。
-        宿主给的区域往往比正方形高（ColorOS 格子偏长），一旦按剩余高度均分，
-        整个日历就会被纵向拉成 2×3 的样子，行距变得很大 —— 这是实测确认的。
+        日期格子：行高固定 16dp，不能用 0dp + rowWeight。
+        宿主给的区域往往不是正方形（ColorOS 实测 150×200dp，横屏 2×2 只有 ~110dp），
+        一旦按剩余高度均分，整个日历就会被纵向拉开，行距变得很大 —— 这是实测确认的。
+        固定行高则在任何尺寸下都一致：放得下就居中，放不下就由启动器裁剪，
+        不会出现「每格高矮不一」或「空出一整行」。
     -->
     <style name="DayCell">
         <item name="android:layout_width">0dp</item>
-        <item name="android:layout_height">18dp</item>
+        <item name="android:layout_height">16dp</item>
         <item name="android:layout_columnWeight">1</item>
         <item name="android:background">@android:color/transparent</item>
         <item name="android:gravity">center</item>
