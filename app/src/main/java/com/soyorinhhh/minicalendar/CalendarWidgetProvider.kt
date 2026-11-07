@@ -6,8 +6,10 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
@@ -66,6 +68,8 @@ class CalendarWidgetProvider : AppWidgetProvider() {
     }
 
     companion object {
+
+        private const val TAG = "MiniCalendar"
 
         private const val ACTION_PREV_MONTH = "com.soyorinhhh.minicalendar.ACTION_PREV_MONTH"
         private const val ACTION_NEXT_MONTH = "com.soyorinhhh.minicalendar.ACTION_NEXT_MONTH"
@@ -173,7 +177,7 @@ class CalendarWidgetProvider : AppWidgetProvider() {
             val weeks = ((leadingBlanks + daysInMonth + 6) / 7).coerceIn(1, MAX_DATE_ROWS)
 
             // ---------- 行高 & 字号 ----------
-            val size = availableSizeDp(manager, widgetId)
+            val size = availableSizeDp(context, manager, widgetId)
             val rowHeight = if (size != null) {
                 rowHeightDp(size.height, weeks)
             } else {
@@ -181,6 +185,13 @@ class CalendarWidgetProvider : AppWidgetProvider() {
             }
             val columnWidth = ((size?.width ?: DEFAULT_SIZE_DP) - PADDING_DP * 2) / 7f
             if (size != null) applyRowHeight(views, rowHeight)
+
+            // 排版完全依赖启动器上报的尺寸，出问题时没有这行日志只能靠猜（实测吃过亏）。
+            Log.d(
+                TAG,
+                "render id=$widgetId size=${size?.width}x${size?.height}dp " +
+                    "weeks=$weeks row=${"%.1f".format(rowHeight)}dp col=${"%.1f".format(columnWidth)}dp"
+            )
 
             val sizes = fontSizes(rowHeight, columnWidth)
             views.setTextViewTextSize(
@@ -276,23 +287,32 @@ class CalendarWidgetProvider : AppWidgetProvider() {
         /**
          * 组件当前尺寸（dp）；启动器没上报尺寸时返回 null。
          *
-         * 可缩放组件的 MIN/MAX 是按横竖屏分别上报的，取两者的较大值能覆盖常规竖屏摆放。
-         * 两者都是 0 说明这个启动器根本不报尺寸 —— 这时宁可退回 styles.xml 里写死的 18dp，
-         * 也不要用一个编出来的数值去缩字号。
+         * MIN/MAX 是按**横竖屏分别**上报的，必须按当前方向取：
+         * 横屏时组件「宽而矮」→ 宽度取 MAX、高度取 MIN；竖屏反过来。
+         * 两个方向都取 MAX 会拿到另一方向的估计值，行高算大，最后一行就被切掉（实测踩过）。
          */
-        private fun availableSizeDp(manager: AppWidgetManager, widgetId: Int): WidgetSize? {
+        private fun availableSizeDp(
+            context: Context,
+            manager: AppWidgetManager,
+            widgetId: Int
+        ): WidgetSize? {
             val options = manager.getAppWidgetOptions(widgetId)
-            val w = maxOf(
-                options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH),
-                options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH)
-            )
-            val h = maxOf(
-                options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT),
-                options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT)
-            )
+            val minW = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)
+            val maxW = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH)
+            val minH = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT)
+            val maxH = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT)
+
+            val landscape = context.resources.configuration.orientation ==
+                Configuration.ORIENTATION_LANDSCAPE
+            // 首选方向对应的那一项；它缺失（有的启动器只报一组）时回退到较大值。
+            val w = pick(if (landscape) maxW else minW, minW, maxW)
+            val h = pick(if (landscape) minH else maxH, minH, maxH)
             if (w <= 0 || h <= 0) return null
             return WidgetSize(w, h)
         }
+
+        private fun pick(preferred: Int, vararg fallbacks: Int): Int =
+            if (preferred > 0) preferred else fallbacks.maxOrNull() ?: 0
 
         /**
          * 由可用高度和当月周数反推每一行的高度。
